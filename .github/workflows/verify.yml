@@ -46,5 +46,6 @@ jobs:
           path: |
             Build/ci/linux-probe/receipt.json
             Build/ci/linux-probe/linux-probe.log
+            Build/ci/linux-probe/*.compile.log
           if-no-files-found: warn
           retention-days: 14
