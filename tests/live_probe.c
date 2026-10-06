@@ -38,6 +38,17 @@ static void hex(const char *data, size_t length) {
     for (size_t i = 0; i < length; ++i) printf("%02x", (unsigned char)data[i]);
 }
 
+static void join_path(char *out, size_t capacity, const char *parent,
+                      const char *suffix) {
+    size_t base = strlen(parent), extra = strlen(suffix);
+    if (base >= capacity || extra >= capacity - base) {
+        errno = ENAMETOOLONG;
+        fail("join path");
+    }
+    memcpy(out, parent, base);
+    memcpy(out + base, suffix, extra + 1);
+}
+
 static void file_expect(const char *path, const char *wanted, const char *label) {
     int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) fail("file_expect open");
@@ -259,9 +270,9 @@ int main(int argc, char **argv) {
     if (strlen(argv[3]) > 72 || argv[3][0] != '/') return 64;
     if (mkdir(argv[3], 0755) != 0) fail("mkdir fixture");
     char socket_path[108], weak_file[108], strong_file[108];
-    snprintf(socket_path, sizeof(socket_path), "%s/service.sock", argv[3]);
-    snprintf(weak_file, sizeof(weak_file), "%s/weak.data", argv[3]);
-    snprintf(strong_file, sizeof(strong_file), "%s/strong.data", argv[3]);
+    join_path(socket_path, sizeof(socket_path), argv[3], "/service.sock");
+    join_path(weak_file, sizeof(weak_file), argv[3], "/weak.data");
+    join_path(strong_file, sizeof(strong_file), argv[3], "/strong.data");
     setup_file(weak_file);
     setup_file(strong_file);
     struct utsname kernel;
@@ -289,10 +300,10 @@ int main(int argc, char **argv) {
     slow_case_expect(socket_path, strong_file, "BASE\nLEGIT\nLEGIT2\n");
     server_expect_exit(strong, socket_path, "strong");
     char bad_ancestor[108], bad_parent[108], bad_socket[108], bad_file[108];
-    snprintf(bad_ancestor, sizeof(bad_ancestor), "%s/uid1001", argv[3]);
-    snprintf(bad_parent, sizeof(bad_parent), "%s/rootparent", bad_ancestor);
-    snprintf(bad_socket, sizeof(bad_socket), "%s/service.sock", bad_parent);
-    snprintf(bad_file, sizeof(bad_file), "%s/protected.data", bad_parent);
+    join_path(bad_ancestor, sizeof(bad_ancestor), argv[3], "/uid1001");
+    join_path(bad_parent, sizeof(bad_parent), bad_ancestor, "/rootparent");
+    join_path(bad_socket, sizeof(bad_socket), bad_parent, "/service.sock");
+    join_path(bad_file, sizeof(bad_file), bad_parent, "/protected.data");
     if (mkdir(bad_ancestor, 0755) || chown(bad_ancestor, 1001, 1001) ||
         mkdir(bad_parent, 0755)) fail("untrusted ancestor fixture");
     reject_untrusted_path(argv[2], bad_socket, strong_file, "uid1001_ancestor");
@@ -304,11 +315,11 @@ int main(int argc, char **argv) {
         fail("untrusted ancestor cleanup");
     char trusted_parent[108], alias[108], aliased_socket[108],
         trusted_file[108], aliased_file[108];
-    snprintf(trusted_parent, sizeof(trusted_parent), "%s/trusted", argv[3]);
-    snprintf(alias, sizeof(alias), "%s/alias", argv[3]);
-    snprintf(aliased_socket, sizeof(aliased_socket), "%s/service.sock", alias);
-    snprintf(trusted_file, sizeof(trusted_file), "%s/protected.data", trusted_parent);
-    snprintf(aliased_file, sizeof(aliased_file), "%s/protected.data", alias);
+    join_path(trusted_parent, sizeof(trusted_parent), argv[3], "/trusted");
+    join_path(alias, sizeof(alias), argv[3], "/alias");
+    join_path(aliased_socket, sizeof(aliased_socket), alias, "/service.sock");
+    join_path(trusted_file, sizeof(trusted_file), trusted_parent, "/protected.data");
+    join_path(aliased_file, sizeof(aliased_file), alias, "/protected.data");
     if (mkdir(trusted_parent, 0755) || symlink(trusted_parent, alias))
         fail("symlink ancestor fixture");
     reject_untrusted_path(argv[2], aliased_socket, strong_file, "symlink_ancestor");
