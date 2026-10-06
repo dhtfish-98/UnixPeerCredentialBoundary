@@ -1,0 +1,11 @@
+# UnixPeerCredentialBoundary
+
+**Local candidate 0.1.0; not published.** Author and maintainer: dhtfish98.
+
+This is a small Linux management service and a real-kernel comparison lab. A root-owned service listens on a pathname `AF_UNIX` stream socket that unprivileged local processes can connect to. A request asks the service to append a bounded synthetic marker to a root-owned `0600` file. The production build authorizes the connected client from Linux `SO_PEERCRED` and checks that a request's declared UID agrees. The separately compiled **weak lab** trusts the declared UID so a different local UID can demonstrate the failure mode.
+
+In the disposable ARM64 Linux VM, a process actually running as UID 1001 cannot open the protected file directly but can claim UID 1000 and make the weak lab write to it. The same request reaches the strong service; the kernel reports UID 1001 and the service rejects it without changing the file. A UID 1000 request succeeds. The lab also checks an exact replay, a mismatched declaration, a spoofed replay, a second valid request, socket/file ownership and modes, and fixture cleanup.
+
+The source directories are `cmd`, `include`, `src`, `tests`, and `scripts`; generated artifacts remain outside them. On a Linux host with C compiler, Python 3, and root or noninteractive `sudo`, run `python3 scripts/run_linux.py --out /absolute/output/path` from the repository root. The output path must be outside the source tree and must not exist. On a macOS workspace with the pinned VM environment already present, `scripts/run_macos_vm.py --build-root /absolute/workspace/Build` uses those local Linux images and Zig; it does not download or vendor them.
+
+The wire request is one canonical line: `PUT <decimal-uid> <nonce> <marker>\n`, followed by write-side shutdown. Each server instance handles at most 16 connections and stores accepted nonces in memory. This is a bounded reference implementation, not a general management API or a deployed daemon. See [THREAT_MODEL.md](THREAT_MODEL.md) for the precise trust and replay limits, [VALIDATION.md](VALIDATION.md) for byte-level observations, and [ORIGIN.md](ORIGIN.md) for provenance and external runtime dependencies.

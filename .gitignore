@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.o
+*.a
+*.so
+*.log
+receipt.json
+Build/
