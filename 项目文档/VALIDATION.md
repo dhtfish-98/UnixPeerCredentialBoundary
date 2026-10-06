@@ -1,6 +1,6 @@
 # Validation snapshot — 2026-10-06
 
-Status: **local real-kernel PASS; GitHub-hosted CI and release OPEN**.
+Status at this local freeze: **local real-kernel PASS; GitHub-hosted CI and release OPEN**. Later publication must be checked against the [exact public release](https://github.com/dhtfish-98/UnixPeerCredentialBoundary/releases) and its workflow run.
 
 The exact source used for the revised local VM run is recorded by SHA-256 in `Build/验证/UnixPeerCredentialBoundary-20261006/vm-gcc-clean-central-20261006/receipt.json`. Its receipt SHA-256 is `068de631019f70003da51f3d3b62a2582e8777cf277264d2130aeb85a355ba2a`; its raw serial SHA-256 is `6fff16a7684020f1d4f1a52a00750213a86c535ab40edc98b0bdba8e2c105f0d`. The harness pinned Linux kernel `6.18.52-0-virt`, its initramfs, and Zig by SHA-256; the resulting three static AArch64 ELF programs are hashed in the receipt. The disposable guest root directory was normalized from owner UID 501 to root/`0755` before the experiment, which the serial log records. VM process exit was 0 and all 20 receipt predicates passed. All three binaries also compiled without warnings under the local x86_64 Linux GCC 15.2 cross compiler with `-std=c11 -O2 -Wall -Wextra -Werror`; that is a compile check, not an x86 runtime result.
 

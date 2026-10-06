@@ -10,20 +10,41 @@ permissions:
   contents: read
 
 jobs:
+  source-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Compile C syntax without executing project code
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Werror -I include -fsyntax-only src/peer_gate.c cmd/managed_write_server.c tests/live_probe.c
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          for path in Path('scripts').glob('*.py'):
+              ast.parse(path.read_text(), filename=str(path))
+          PY
+
   real-kernel-probe:
+    if: github.event_name == 'push'
+    needs: source-check
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - name: Compile and run real UID and AF_UNIX boundary
-        run: python3 scripts/run_linux.py --out "$RUNNER_TEMP/unix-peer-credential-boundary"
-      - name: Preserve synthetic evidence
+        run: python3 -B scripts/run_linux.py --out Build/ci/linux-probe
+      - name: Preserve synthetic receipt and raw log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: linux-peer-credential-probe
-          path: ${{ runner.temp }}/unix-peer-credential-boundary/
+          path: |
+            Build/ci/linux-probe/receipt.json
+            Build/ci/linux-probe/linux-probe.log
           if-no-files-found: warn
           retention-days: 14

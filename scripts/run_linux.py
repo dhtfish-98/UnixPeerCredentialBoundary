@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 dhtfish98
-"""Build and run the real Linux UID/AF_UNIX probe outside the source tree."""
+"""Build and run the real Linux UID/AF_UNIX probe under ignored Build."""
 
 from __future__ import annotations
 
@@ -60,16 +60,16 @@ def check_log(log: str) -> dict[str, bool]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path,
-                        help="new build/evidence directory outside the project source tree")
+                        help="new build/evidence directory under ignored Build or outside the source tree")
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
     output = args.out.resolve()
     try:
-        output.relative_to(project)
+        relative = output.relative_to(project)
     except ValueError:
-        pass
-    else:
-        parser.error("--out must be outside the project source tree")
+        relative = None
+    if relative is not None and (not relative.parts or relative.parts[0] != "Build"):
+        parser.error("--out must be outside the source tree or under ignored Build")
     output.mkdir(parents=True, exist_ok=False)
     receipt: dict[str, object] = {
         "status": "OPEN", "created_utc": datetime.now(timezone.utc).isoformat(),
