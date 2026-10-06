@@ -49,6 +49,10 @@ def check_log(log: str) -> dict[str, bool]:
                               "FILE_CHECK=uid1001_ancestor PASS " in log,
         "symlink_ancestor": "PATH_CHECK=symlink_ancestor PASS status=65 socket_absent=1" in log and
                             "FILE_CHECK=symlink_ancestor PASS " in log,
+        "file_untrusted_ancestor": "PATH_CHECK=file_uid1001_ancestor PASS status=65 socket_absent=1" in log and
+                                   "FILE_CHECK=file_uid1001_ancestor PASS " in log,
+        "file_symlink_ancestor": "PATH_CHECK=file_symlink_ancestor PASS status=65 socket_absent=1" in log and
+                                 "FILE_CHECK=file_symlink_ancestor PASS " in log,
     })
     return checks
 

@@ -2,7 +2,7 @@
 
 Status: **local real-kernel PASS; GitHub-hosted CI and release OPEN**.
 
-The exact source used for the revised local VM run is recorded by SHA-256 in `Build/验证/UnixPeerCredentialBoundary-20261006/vm-path-negatives-20261006/receipt.json`. Its receipt SHA-256 is `1f6acf7decb108c277454e32768eb458ca274da5a4b4391839d89c72cb7e5bfe`; its raw serial SHA-256 is `c85da30c56ef6a477dded21ad6b5309223e2e894cb1dc47bed9bd84ca1d8f655`. The harness pinned Linux kernel `6.18.52-0-virt`, its initramfs, and Zig by SHA-256; the resulting three static AArch64 ELF programs are hashed in the receipt. The disposable guest root directory was normalized from owner UID 501 to root/`0755` before the experiment, which the serial log records. VM process exit was 0 and all 18 receipt predicates passed.
+The exact source used for the revised local VM run is recorded by SHA-256 in `Build/验证/UnixPeerCredentialBoundary-20261006/vm-file-path-negatives-20261006/receipt.json`. Its receipt SHA-256 is `a11cafa949f7853622547f3ba0ced8b9f89a4c48c01236274790649723831f22`; its raw serial SHA-256 is `6452989b1e13f4c809a68a9e6bd3fd413c901e2bab7a17264dca678916d91eb7`. The harness pinned Linux kernel `6.18.52-0-virt`, its initramfs, and Zig by SHA-256; the resulting three static AArch64 ELF programs are hashed in the receipt. The disposable guest root directory was normalized from owner UID 501 to root/`0755` before the experiment, which the serial log records. VM process exit was 0 and all 20 receipt predicates passed.
 
 | Actual Linux process / request | Observed response | Protected file effect |
 | --- | --- | --- |
@@ -17,5 +17,7 @@ The exact source used for the revised local VM run is recorded by SHA-256 in `Bu
 | UID 1001 drip-feeds a request every 400 ms | `ERR MALFORMED` after 2,001 ms total | Unchanged |
 | Socket parent is root-owned but its ancestor is UID 1001-owned | Server refuses startup with status 65; no socket | Unchanged |
 | Socket ancestor is a symlink | Server refuses startup with status 65; no socket | Unchanged |
+| Protected-file ancestor is UID 1001-owned | Server refuses startup with status 65; no socket | The protected file remains `BASE\n` |
+| Protected-file ancestor is a symlink | Server refuses startup with status 65; no socket | The protected file remains `BASE\n` |
 
 The serial log contains the hexadecimal bytes for every sent request, received response and protected file state, plus server-reported kernel PID/UID/GID, socket owner/mode `0/666`, protected file owner/mode `0/600`, success exits and cleanup. This evidence is for a controlled local VM. The Linux CI workflow has been prepared but not run on GitHub at this snapshot; a GitHub release or official CVP decision must not be inferred from this local result.

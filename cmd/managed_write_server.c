@@ -103,17 +103,16 @@ static int decode_request(const char *request, uid_t *declared,
     return 0;
 }
 
-static void validate_parent(const char *socket_path) {
-    size_t length = strlen(socket_path);
-    if (length < 3 || length >= sizeof(((struct sockaddr_un *)0)->sun_path) ||
-        socket_path[0] != '/' || socket_path[length - 1] == '/') {
-        fprintf(stderr, "socket path must be short and absolute\n");
+static void validate_parent(const char *path) {
+    size_t length = strlen(path);
+    if (length < 3 || path[0] != '/' || path[length - 1] == '/') {
+        fprintf(stderr, "path must be absolute and have a final name\n");
         exit(64);
     }
-    const char *last_slash = strrchr(socket_path, '/');
-    if (!last_slash || last_slash == socket_path ||
+    const char *last_slash = strrchr(path, '/');
+    if (!last_slash || last_slash == path ||
         strcmp(last_slash + 1, ".") == 0 || strcmp(last_slash + 1, "..") == 0) {
-        fprintf(stderr, "socket must be under a dedicated root-owned directory\n");
+        fprintf(stderr, "path must be under a dedicated root-owned directory\n");
         exit(64);
     }
     int directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
@@ -125,31 +124,36 @@ static void validate_parent(const char *socket_path) {
         close(directory);
         exit(65);
     }
-    const char *component = socket_path + 1;
+    const char *component = path + 1;
     while (component < last_slash) {
         const char *end = strchr(component, '/');
         if (!end || end > last_slash || end == component ||
             (end - component == 1 && component[0] == '.') ||
             (end - component == 2 && component[0] == '.' && component[1] == '.')) {
-            fprintf(stderr, "noncanonical socket path\n");
+            fprintf(stderr, "noncanonical path\n");
             close(directory);
             exit(64);
         }
-        char name[sizeof(((struct sockaddr_un *)0)->sun_path)];
+        char name[256];
         size_t part_length = (size_t)(end - component);
+        if (part_length >= sizeof(name)) {
+            fprintf(stderr, "path component too long\n");
+            close(directory);
+            exit(64);
+        }
         memcpy(name, component, part_length);
         name[part_length] = '\0';
         int child = openat(directory, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
         close(directory);
         if (child < 0) {
-            fprintf(stderr, "socket path ancestor is missing or is a symlink\n");
+            fprintf(stderr, "path ancestor is missing or is a symlink\n");
             exit(65);
         }
         directory = child;
         if (fstat(directory, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != 0 ||
             ((st.st_mode & 0022) != 0 &&
              (end == last_slash || (st.st_mode & S_ISVTX) == 0))) {
-            fprintf(stderr, "socket path ancestor is not root-controlled\n");
+            fprintf(stderr, "path ancestor is not root-controlled\n");
             close(directory);
             exit(65);
         }
@@ -172,6 +176,7 @@ int main(int argc, char **argv) {
     uid_t connection_count_uid;
     if (parse_uid(argv[3], &authorized) || parse_uid(argv[4], &connection_count_uid) ||
         connection_count_uid == 0 || connection_count_uid > MAX_CONNECTIONS) return 64;
+    validate_parent(argv[2]);
     int file_fd = open(argv[2], O_WRONLY | O_APPEND | O_CLOEXEC | O_NOFOLLOW);
     if (file_fd < 0) fatal("open protected file");
     struct stat file_stat;
@@ -182,6 +187,11 @@ int main(int argc, char **argv) {
         return 65;
     }
     validate_parent(argv[1]);
+    if (strlen(argv[1]) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
+        fprintf(stderr, "socket path exceeds AF_UNIX pathname limit\n");
+        close(file_fd);
+        return 64;
+    }
     struct stat existing;
     if (lstat(argv[1], &existing) == 0 || errno != ENOENT) {
         fprintf(stderr, "socket path already exists or is inaccessible\n");

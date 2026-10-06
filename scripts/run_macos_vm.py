@@ -200,6 +200,10 @@ def main() -> int:
                                   "FILE_CHECK=uid1001_ancestor PASS " in serial,
             "symlink_ancestor": "PATH_CHECK=symlink_ancestor PASS status=65 socket_absent=1" in serial and
                                 "FILE_CHECK=symlink_ancestor PASS " in serial,
+            "file_untrusted_ancestor": "PATH_CHECK=file_uid1001_ancestor PASS status=65 socket_absent=1" in serial and
+                                       "FILE_CHECK=file_uid1001_ancestor PASS " in serial,
+            "file_symlink_ancestor": "PATH_CHECK=file_symlink_ancestor PASS status=65 socket_absent=1" in serial and
+                                     "FILE_CHECK=file_symlink_ancestor PASS " in serial,
             "guest_exit": "VM_PROBE_RC=0" in serial,
             "kernel": "KERNEL_RELEASE=6.18.52-0-virt" in serial,
             "root_mode": "ROOT_AFTER=0:755" in serial,

@@ -288,24 +288,36 @@ int main(int argc, char **argv) {
                 "PUT 1000 valid002 LEGIT2\n", "OK WRITE\n", "BASE\nLEGIT\nLEGIT2\n");
     slow_case_expect(socket_path, strong_file, "BASE\nLEGIT\nLEGIT2\n");
     server_expect_exit(strong, socket_path, "strong");
-    char bad_ancestor[108], bad_parent[108], bad_socket[108];
+    char bad_ancestor[108], bad_parent[108], bad_socket[108], bad_file[108];
     snprintf(bad_ancestor, sizeof(bad_ancestor), "%s/uid1001", argv[3]);
     snprintf(bad_parent, sizeof(bad_parent), "%s/rootparent", bad_ancestor);
     snprintf(bad_socket, sizeof(bad_socket), "%s/service.sock", bad_parent);
+    snprintf(bad_file, sizeof(bad_file), "%s/protected.data", bad_parent);
     if (mkdir(bad_ancestor, 0755) || chown(bad_ancestor, 1001, 1001) ||
         mkdir(bad_parent, 0755)) fail("untrusted ancestor fixture");
     reject_untrusted_path(argv[2], bad_socket, strong_file, "uid1001_ancestor");
     file_expect(strong_file, "BASE\nLEGIT\nLEGIT2\n", "uid1001_ancestor");
-    if (rmdir(bad_parent) || rmdir(bad_ancestor)) fail("untrusted ancestor cleanup");
-    char trusted_parent[108], alias[108], aliased_socket[108];
+    setup_file(bad_file);
+    reject_untrusted_path(argv[2], socket_path, bad_file, "file_uid1001_ancestor");
+    file_expect(bad_file, "BASE\n", "file_uid1001_ancestor");
+    if (unlink(bad_file) || rmdir(bad_parent) || rmdir(bad_ancestor))
+        fail("untrusted ancestor cleanup");
+    char trusted_parent[108], alias[108], aliased_socket[108],
+        trusted_file[108], aliased_file[108];
     snprintf(trusted_parent, sizeof(trusted_parent), "%s/trusted", argv[3]);
     snprintf(alias, sizeof(alias), "%s/alias", argv[3]);
     snprintf(aliased_socket, sizeof(aliased_socket), "%s/service.sock", alias);
+    snprintf(trusted_file, sizeof(trusted_file), "%s/protected.data", trusted_parent);
+    snprintf(aliased_file, sizeof(aliased_file), "%s/protected.data", alias);
     if (mkdir(trusted_parent, 0755) || symlink(trusted_parent, alias))
         fail("symlink ancestor fixture");
     reject_untrusted_path(argv[2], aliased_socket, strong_file, "symlink_ancestor");
     file_expect(strong_file, "BASE\nLEGIT\nLEGIT2\n", "symlink_ancestor");
-    if (unlink(alias) || rmdir(trusted_parent)) fail("symlink ancestor cleanup");
+    setup_file(trusted_file);
+    reject_untrusted_path(argv[2], socket_path, aliased_file, "file_symlink_ancestor");
+    file_expect(trusted_file, "BASE\n", "file_symlink_ancestor");
+    if (unlink(trusted_file) || unlink(alias) || rmdir(trusted_parent))
+        fail("symlink ancestor cleanup");
     if (unlink(weak_file) || unlink(strong_file) || rmdir(argv[3])) fail("cleanup");
     printf("CLEANUP=PASS\nTEST_EXIT=0\n");
     return 0;
