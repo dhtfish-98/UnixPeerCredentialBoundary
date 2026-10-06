@@ -145,13 +145,15 @@ static struct client_result request_as(uid_t uid, const char *socket_path,
                 result.sent_length = (int)strlen(wire);
             }
             if (result.sent_length > 0) {
-                while (result.response_length < (int)sizeof(result.response) - 1) {
-                    ssize_t n = read(fd, result.response + result.response_length,
-                                     sizeof(result.response) - 1 - (size_t)result.response_length);
+                size_t used = 0;
+                while (used < sizeof(result.response) - 1) {
+                    size_t remaining = sizeof(result.response) - 1 - used;
+                    ssize_t n = read(fd, result.response + used, remaining);
                     if (n < 0 && errno == EINTR) continue;
                     if (n <= 0) break;
-                    result.response_length += (int)n;
+                    used += (size_t)n;
                 }
+                result.response_length = (int)used;
             }
             if (clock_gettime(CLOCK_MONOTONIC, &finished) != 0) _exit(16);
             result.elapsed_ms = (int)((finished.tv_sec - started.tv_sec) * 1000 +
