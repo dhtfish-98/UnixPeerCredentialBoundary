@@ -1,6 +1,6 @@
 # UnixPeerCredentialBoundary
 
-**Local candidate 0.1.0; not published.** Author and maintainer: dhtfish98.
+**Source version 0.1.1.** Author and maintainer: dhtfish98. The prior [v0.1.0 public release](https://github.com/dhtfish-98/UnixPeerCredentialBoundary/releases/tag/v0.1.0) has exact-commit Linux CI and downloadable evidence. Check [Releases](https://github.com/dhtfish-98/UnixPeerCredentialBoundary/releases) and its linked workflow for the current published version.
 
 This is a small Linux management service and a real-kernel comparison lab. A root-owned service listens on a pathname `AF_UNIX` stream socket that unprivileged local processes can connect to. A request asks the service to append a bounded synthetic marker to a root-owned `0600` file. The production build authorizes the connected client from Linux `SO_PEERCRED` and checks that a request's declared UID agrees. The separately compiled **weak lab** trusts the declared UID so a different local UID can demonstrate the failure mode.
 
