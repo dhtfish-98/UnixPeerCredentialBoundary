@@ -27,6 +27,10 @@ PINS = {
     "zig": "90b31f6630e0489bc4f6fd41b70dcfde8fce434636cff15a61d57061b10a4abb",
 }
 COMMANDS = (
+    "/bin/busybox stat -c ROOT_BEFORE=%u:%a /\n"
+    "/bin/busybox chown 0:0 /\n"
+    "/bin/busybox chmod 755 /\n"
+    "/bin/busybox stat -c ROOT_AFTER=%u:%a /\n"
     "/bin/busybox mkdir -p /tmp\n"
     "echo VM_PROBE_START\n"
     "/usr/bin/live-probe /usr/bin/weak-lab-server /usr/bin/managed-write-server /tmp/peercred\n"
@@ -37,6 +41,7 @@ EXPECTED_CASES = (
     "weak_spoof_uid1001", "strong_spoof_uid1001", "strong_legit_uid1000",
     "strong_replay_uid1000", "strong_claim_mismatch_uid1000",
     "strong_replay_spoof_uid1001", "strong_second_legit_uid1000",
+    "strong_slow_drip_uid1001",
 )
 
 
@@ -191,8 +196,13 @@ def main() -> int:
             "weak_server": "SERVER_CHECK=weak_lab PASS status=0 socket_removed=1" in serial,
             "strong_server": "SERVER_CHECK=strong PASS status=0 socket_removed=1" in serial,
             "cleanup": "CLEANUP=PASS\nTEST_EXIT=0" in serial,
+            "untrusted_ancestor": "PATH_CHECK=uid1001_ancestor PASS status=65 socket_absent=1" in serial and
+                                  "FILE_CHECK=uid1001_ancestor PASS " in serial,
+            "symlink_ancestor": "PATH_CHECK=symlink_ancestor PASS status=65 socket_absent=1" in serial and
+                                "FILE_CHECK=symlink_ancestor PASS " in serial,
             "guest_exit": "VM_PROBE_RC=0" in serial,
             "kernel": "KERNEL_RELEASE=6.18.52-0-virt" in serial,
+            "root_mode": "ROOT_AFTER=0:755" in serial,
             "weak_spoof": "CASE=weak_spoof_uid1001 process_uid=1001 direct_file_errno=13 connected=1" in serial,
             "strong_reject": "CASE=strong_spoof_uid1001 process_uid=1001 direct_file_errno=13 connected=1" in serial,
         })

@@ -20,6 +20,7 @@ CASES = (
     "weak_spoof_uid1001", "strong_spoof_uid1001", "strong_legit_uid1000",
     "strong_replay_uid1000", "strong_claim_mismatch_uid1000",
     "strong_replay_spoof_uid1001", "strong_second_legit_uid1000",
+    "strong_slow_drip_uid1001",
 )
 
 
@@ -44,6 +45,10 @@ def check_log(log: str) -> dict[str, bool]:
         "weak_server": "SERVER_CHECK=weak_lab PASS status=0 socket_removed=1" in log,
         "strong_server": "SERVER_CHECK=strong PASS status=0 socket_removed=1" in log,
         "cleanup": "CLEANUP=PASS\nTEST_EXIT=0\n" in log,
+        "untrusted_ancestor": "PATH_CHECK=uid1001_ancestor PASS status=65 socket_absent=1" in log and
+                              "FILE_CHECK=uid1001_ancestor PASS " in log,
+        "symlink_ancestor": "PATH_CHECK=symlink_ancestor PASS status=65 socket_absent=1" in log and
+                            "FILE_CHECK=symlink_ancestor PASS " in log,
     })
     return checks
 

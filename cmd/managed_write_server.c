@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,8 +16,8 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/time.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_REQUEST 128
@@ -60,11 +61,23 @@ static int is_token(const char *value, size_t min_len, size_t max_len) {
 }
 
 static int read_request(int fd, char *buffer, size_t capacity) {
+    struct timespec started;
+    if (clock_gettime(CLOCK_MONOTONIC, &started) != 0) return -1;
+    int64_t deadline_ms = (int64_t)started.tv_sec * 1000 + started.tv_nsec / 1000000 + 2000;
     size_t count = 0;
     for (;;) {
         if (count == capacity - 1) return -1;
-        ssize_t n = read(fd, buffer + count, capacity - 1 - count);
+        struct timespec now;
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return -1;
+        int64_t remaining_ms = deadline_ms - ((int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000);
+        if (remaining_ms <= 0) return -1;
+        struct pollfd ready = {.fd = fd, .events = POLLIN | POLLHUP};
+        int polled = poll(&ready, 1, (int)remaining_ms);
+        if (polled < 0 && errno == EINTR) continue;
+        if (polled <= 0) return -1;
+        ssize_t n = recv(fd, buffer + count, capacity - 1 - count, MSG_DONTWAIT);
         if (n < 0 && errno == EINTR) continue;
+        if (n < 0 && errno == EAGAIN) continue;
         if (n < 0) return -1;
         if (n == 0) break;
         count += (size_t)n;
@@ -91,25 +104,58 @@ static int decode_request(const char *request, uid_t *declared,
 }
 
 static void validate_parent(const char *socket_path) {
-    char parent[sizeof(((struct sockaddr_un *)0)->sun_path)];
     size_t length = strlen(socket_path);
-    if (length == 0 || length >= sizeof(parent) || socket_path[0] != '/') {
+    if (length < 3 || length >= sizeof(((struct sockaddr_un *)0)->sun_path) ||
+        socket_path[0] != '/' || socket_path[length - 1] == '/') {
         fprintf(stderr, "socket path must be short and absolute\n");
         exit(64);
     }
-    memcpy(parent, socket_path, length + 1);
-    char *slash = strrchr(parent, '/');
-    if (!slash || slash == parent) {
+    const char *last_slash = strrchr(socket_path, '/');
+    if (!last_slash || last_slash == socket_path ||
+        strcmp(last_slash + 1, ".") == 0 || strcmp(last_slash + 1, "..") == 0) {
         fprintf(stderr, "socket must be under a dedicated root-owned directory\n");
         exit(64);
     }
-    *slash = '\0';
+    int directory = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (directory < 0) fatal("open root directory");
     struct stat st;
-    if (lstat(parent, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != 0 ||
+    if (fstat(directory, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != 0 ||
         (st.st_mode & 0022) != 0) {
-        fprintf(stderr, "socket parent must be a root-owned non-writable directory\n");
+        fprintf(stderr, "root directory failed trust check\n");
+        close(directory);
         exit(65);
     }
+    const char *component = socket_path + 1;
+    while (component < last_slash) {
+        const char *end = strchr(component, '/');
+        if (!end || end > last_slash || end == component ||
+            (end - component == 1 && component[0] == '.') ||
+            (end - component == 2 && component[0] == '.' && component[1] == '.')) {
+            fprintf(stderr, "noncanonical socket path\n");
+            close(directory);
+            exit(64);
+        }
+        char name[sizeof(((struct sockaddr_un *)0)->sun_path)];
+        size_t part_length = (size_t)(end - component);
+        memcpy(name, component, part_length);
+        name[part_length] = '\0';
+        int child = openat(directory, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        close(directory);
+        if (child < 0) {
+            fprintf(stderr, "socket path ancestor is missing or is a symlink\n");
+            exit(65);
+        }
+        directory = child;
+        if (fstat(directory, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != 0 ||
+            ((st.st_mode & 0022) != 0 &&
+             (end == last_slash || (st.st_mode & S_ISVTX) == 0))) {
+            fprintf(stderr, "socket path ancestor is not root-controlled\n");
+            close(directory);
+            exit(65);
+        }
+        component = end + 1;
+    }
+    close(directory);
 }
 
 int main(int argc, char **argv) {
@@ -166,8 +212,6 @@ int main(int argc, char **argv) {
     for (unsigned i = 0; i < (unsigned)connection_count_uid; ++i) {
         int peer = accept4(listener, NULL, NULL, SOCK_CLOEXEC);
         if (peer < 0) fatal("accept");
-        struct timeval timeout = {.tv_sec = 2};
-        (void)setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
         char request[MAX_REQUEST] = {0};
         char nonce[33] = {0}, payload[33] = {0};
         uid_t declared = (uid_t)-1;
